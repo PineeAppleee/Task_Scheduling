@@ -85,18 +85,21 @@ def round_robin(tasks, quantum=2):
 def extract_features(tasks):
     burst_times = [t['burst'] for t in tasks]
     arrival_times = [t['arrival'] for t in tasks]
-    features = {
-        'num_tasks': len(tasks),
-        'burst_mean': np.mean(burst_times),
-        'burst_std': np.std(burst_times),
-        'arrival_mean': np.mean(arrival_times),
-        'arrival_std': np.std(arrival_times),
-        'burst_min': np.min(burst_times),
-        'burst_max': np.max(burst_times),
-        'arrival_min': np.min(arrival_times),
-        'arrival_max': np.max(arrival_times)
-    }
-    return np.array(list(features.values())).reshape(1, -1)
+    priority_values = [t.get('priority', 3) for t in tasks]  # Default priority=3 if not present
+    features = [
+        len(tasks),
+        np.mean(burst_times),
+        np.std(burst_times),
+        np.mean(arrival_times),
+        np.std(arrival_times),
+        np.min(burst_times),
+        np.max(burst_times),
+        np.min(arrival_times),
+        np.max(arrival_times),
+        np.mean(priority_values),
+        np.std(priority_values)
+    ]
+    return np.array(features).reshape(1, -1)
 
 # --- AI Model Training (Synthetic Data) ---
 def generate_synthetic_data(samples=500):
@@ -132,7 +135,7 @@ def main():
     arrivals = np.sort(np.random.randint(0, 10, num_tasks))
     print("Generated burst times:", bursts)
     print("Generated arrival times:", arrivals)
-    tasks = [{'tid': i+1, 'burst': int(bursts[i]), 'arrival': int(arrivals[i])} for i in range(num_tasks)]
+    tasks = [{'tid': i+1, 'burst': int(bursts[i]), 'arrival': int(arrivals[i]), 'priority': random.randint(1, 5)} for i in range(num_tasks)]
 
     # Run all algorithms
     fcfs_result = fcfs([t.copy() for t in tasks])
@@ -151,15 +154,27 @@ def main():
         print(f"{name}: Avg Waiting = {metrics[i][0]:.2f}, Avg Turnaround = {metrics[i][1]:.2f}")
 
     # --- AI Model: Load real dataset ---
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+
     df = pd.read_csv('scheduling_dataset.csv')
-    X = df.drop('best_algo', axis=1).values
-    y = df['best_algo'].values
-    clf = RandomForestClassifier(n_estimators=50, random_state=42)
-    clf.fit(X, y)
+    features = [
+        'num_tasks','burst_mean','burst_std','arrival_mean','arrival_std',
+        'burst_min','burst_max','arrival_min','arrival_max','priority_mean','priority_std'
+    ]
+    X = df[features]
+    y = df['best_algo']
+
+    model = RandomForestClassifier()
+    model.fit(X, y)
+    # Save model if needed
+    import joblib
+    joblib.dump(model, 'scheduling_model.pkl')
     # Extract features from current task set
     def extract_features(tasks):
         burst_times = [t['burst'] for t in tasks]
         arrival_times = [t['arrival'] for t in tasks]
+        priority_values = [t.get('priority', 3) for t in tasks]  # Default priority=3 if not present
         features = [
             len(tasks),
             np.mean(burst_times),
@@ -169,11 +184,13 @@ def main():
             np.min(burst_times),
             np.max(burst_times),
             np.min(arrival_times),
-            np.max(arrival_times)
+            np.max(arrival_times),
+            np.mean(priority_values),
+            np.std(priority_values)
         ]
         return np.array(features).reshape(1, -1)
     features = extract_features(tasks)
-    pred = clf.predict(features)[0]
+    pred = model.predict(features)[0]
     print(f"\nAI Recommendation: Use {algo_names[pred]} for this task set!\n")
 
     # Optional: Show detailed table
