@@ -117,11 +117,9 @@ def scheduler_loop():
                 print("\nRescheduling with current tasks:")
                 for t in task_queue:
                     print(t)
-                # AI Recommendation
                 features = extract_features(task_queue)
                 pred = clf.predict(features)[0]
                 print(f"\nAI Recommendation: {algo_names[pred]}")
-                # Run recommended algorithm
                 if pred == 0:
                     result = fcfs([t.copy() for t in task_queue])
                 elif pred == 1:
@@ -131,6 +129,7 @@ def scheduler_loop():
                 print("\nSchedule:")
                 for t in result:
                     print(f"Task {t['tid']}: Start={t['start']} Finish={t['finish']} Waiting={t['waiting']}")
+                task_queue.clear()  # Clear the queue after scheduling
         time.sleep(5)  # Refresh every 5 seconds
 
 def add_task():
@@ -147,8 +146,7 @@ def add_task():
                 task_queue.append({'tid': tid, 'burst': burst, 'arrival': arrival})
             print(f"Added Task {tid} (burst={burst}, arrival={arrival})")
             tid += 1
-        else:
-            break
+        # Remove the 'else: break' to keep prompting for new tasks
 
 if __name__ == "__main__":
     threading.Thread(target=scheduler_loop, daemon=True).start()
